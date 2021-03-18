@@ -5,7 +5,7 @@ export { debounce, clamp, pad, evaluate } from '../utils'
 export { normalizeKeyedNumberSettings } from '../components/Vector/vector-utils'
 
 export { createPlugin } from '../plugin'
-export { Row, Label, Portal } from '../components/UI'
+export * from '../components/UI'
 export { ValueInput } from '../components/ValueInput'
 export * from '../components/Vector/vector-plugin'
 export { Vector, getVectorPlugin } from '../components/Vector'

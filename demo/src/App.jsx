@@ -12,6 +12,7 @@ import Scroll from './sandboxes/leva-scroll/src/App'
 import UI from './sandboxes/leva-ui/src/App'
 import Theme from './sandboxes/leva-theme/src/App'
 import CustomPlugin from './sandboxes/leva-custom-plugin/src/App'
+import Editable from './sandboxes/vinxi/src/App'
 
 const { styled } = createCss({
   theme: {
@@ -37,6 +38,7 @@ const links = {
   'leva-ui': UI,
   'leva-theme': Theme,
   'leva-custom-plugin': CustomPlugin,
+  'vinxi': Editable,
 }
 
 const Example = ({ link }) => {

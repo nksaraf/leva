@@ -3,6 +3,8 @@ import type { SpecialInput, RenderFn, FolderSettings, Plugin } from './public'
 
 export type State = { data: Data }
 
+export type MappedPaths = Record<string, { path: string; onChange: (value: any) => void }>
+
 export type StoreType<TState extends State> = {
   useStore: UseStore<TState>
   orderPaths: (paths: string[]) => string[]
@@ -19,7 +21,7 @@ export type StoreType<TState extends State> = {
   // TODO possibly better type this
   set: (values: Record<string, any>) => void
   get: (path: string) => any
-  getDataFromSchema: (schema: any) => [Data, Record<string, string>]
+  getDataFromSchema: (schema: any) => [Data, MappedPaths]
 }
 
 
@@ -36,6 +38,7 @@ export type DataInput = {
   value: unknown
   optional: boolean
   disabled: boolean
+  onChange?: (value: unknown) => void
   settings?: object
 } & Decorators
 

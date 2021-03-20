@@ -57,7 +57,7 @@ export type VectorObj = Record<string, number>
 
 export type Vector2dArray = [number, number]
 export type Vector2d = Vector2dArray | VectorObj
-export type Vector2dSettings = VectorSettings<Vector2d, 'x' | 'y'> & { joystick?: boolean; lock?: boolean }
+export type Vector2dSettings = VectorSettings<Vector2d, 'x' | 'y'> & { joystick?: boolean | 'invertY'; lock?: boolean }
 export type Vector2dInput = MergedInputWithSettings<Vector2d, Vector2dSettings>
 
 export type Vector3dArray = [number, number, number]
@@ -106,7 +106,7 @@ type SchemaItem =
   | CustomInput<unknown>
 
 type GenericSchemaItemOptions = { render?: RenderFn; label?: string | JSX.Element; hint?: string }
-type InputOptions = { optional?: boolean; disabled?: boolean }
+type InputOptions = { optional?: boolean; disabled?: boolean; onChange?: (v: any) => void }
 type ReservedKeys = keyof GenericSchemaItemOptions | keyof InputOptions | '__customInput' | 'type'
 
 type StripReservedKeys<K> = BeautifyUnionType<K extends any[] ? K : K extends object ? Omit<K, ReservedKeys> : K>
@@ -153,19 +153,23 @@ type PrimitiveToValue<S> = S extends CustomInput<infer I>
   ? boolean
   : NotAPrimitiveType
 
-export type SchemaToValues<S> = BeautifyUnionType<UnionToIntersection<Leaves<S>>>
+export type SchemaToValues<Schema, IncludeTransient extends boolean = false> = BeautifyUnionType<
+  UnionToIntersection<Leaves<IncludeTransient, Schema>>
+>
 
 type Leaf = { ___leaf: 'leaf' }
 type Join<T, K extends keyof T, P> = Leaf extends P ? { [i in K]: T[K] } : P
 
-export type Leaves<T, P extends string | number | symbol = ''> = {
+export type Leaves<IncludeTransient extends boolean, T, P extends string | number | symbol = ''> = {
   // if it's a folder we run the type check on it's schema key
   0: T extends { schema: infer F } ? { [K in keyof F]: Join<F, K, F[K]> } : never
   1: never
   // if the leaf is an object, we run the type check on each of its keys
-  2: { [i in P]: T extends { optional: true } ? PrimitiveToValue<T> | undefined : PrimitiveToValue<T> }
+  2: {
+    [i in P]: T extends { optional: true } ? PrimitiveToValue<T> | undefined : PrimitiveToValue<T>
+  }
   // recursivity
-  3: { [K in keyof T]: Join<T, K, Leaves<T[K], K>> }[keyof T]
+  3: { [K in keyof T]: Join<T, K, Leaves<IncludeTransient, T[K], K>> }[keyof T]
   // dead end
   4: Leaf
 }[P extends ''
@@ -178,6 +182,10 @@ export type Leaves<T, P extends string | number | symbol = ''> = {
   ? T extends object
     ? 3
     : 4
+  : T extends { onChange: any } // if an input has the onChange property then it's transient and isn't returned
+  ? IncludeTransient extends true
+    ? 2
+    : 1
   : 2]
 
 /**

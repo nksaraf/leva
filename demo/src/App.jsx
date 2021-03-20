@@ -12,7 +12,7 @@ import Scroll from './sandboxes/leva-scroll/src/App'
 import UI from './sandboxes/leva-ui/src/App'
 import Theme from './sandboxes/leva-theme/src/App'
 import CustomPlugin from './sandboxes/leva-custom-plugin/src/App'
-import Editable from './sandboxes/vinxi/src/App'
+import LevaTransient from './sandboxes/leva-transient/src/App'
 
 const { styled } = createCss({
   theme: {
@@ -31,14 +31,15 @@ const Page = styled('div', {
 
 const links = {
   'leva-minimal': Minimal,
-  'leva-plugin-spring': PluginSpring,
   'leva-busy': Busy,
   'leva-advanced-panels': AdvancedPanels,
   'leva-scroll': Scroll,
   'leva-ui': UI,
   'leva-theme': Theme,
+  'leva-transient': LevaTransient,
+  'leva-plugin-spring': PluginSpring,
   'leva-custom-plugin': CustomPlugin,
-  'vinxi': Editable,
+  vinxi: Editable,
 }
 
 const Example = ({ link }) => {
@@ -65,7 +66,7 @@ export default function App() {
           <h1>Leva demos</h1>
           <h2>Sandboxes</h2>
           <div className={styles.linkList}>
-            {Object.keys(links).map((link) => (
+            {Object.keys(links).map(link => (
               <Link key={link} href={`/${link}`}>
                 {/*eslint-disable-next-line jsx-a11y/anchor-is-valid */}
                 <a className={styles.link}>{link}</a>
@@ -74,7 +75,7 @@ export default function App() {
           </div>
         </Page>
       </Route>
-      <Route path="/:link">{(params) => <Example link={params.link} />}</Route>
+      <Route path="/:link">{params => <Example link={params.link} />}</Route>
     </>
   )
 }

@@ -12,9 +12,11 @@ import {
   SpotLight,
   Vector3,
 } from 'three'
-import { EditableType, useGameStore } from './store'
+import { EditableType, useGameStore as useWorldStore } from './store'
 import shallow from 'zustand/shallow'
 import mergeRefs from 'react-merge-refs'
+import { folder, useControls, useCreateStore } from 'leva'
+import { Store } from 'leva'
 
 interface Elements {
   group: Group
@@ -25,6 +27,41 @@ interface Elements {
   orthographicCamera: OrthographicCamera
   pointLight: PointLight
 }
+
+const entitiesStore = new Store()
+
+const EntityContext = React.createContext({})
+const useEntity = () => {
+  return React.useContext(EntityContext)
+}
+
+const Entity = ({ children, id }) => {
+  const store = useCreateStore()
+
+  useControls(
+    {
+      entities: folder({
+        id: true,
+      }),
+    },
+    { store: entitiesStore }
+  )
+  return <EntityContext.Provider value={store}>{children}</EntityContext.Provider>
+}
+
+const Component = () => {
+  useControls({})
+}
+
+const component = () => {
+  const func = () => {
+    return null
+  }
+
+  return func
+}
+
+// const PositionComponent = component(() => {})
 
 const entity = <T extends JSXElementConstructor<any> | EditableType, U extends EditableType>(Component: T, type: U) =>
   forwardRef(
@@ -43,67 +80,39 @@ const entity = <T extends JSXElementConstructor<any> | EditableType, U extends E
     ) => {
       const objectRef = useRef<Elements[U]>()
 
-      console.log(props)
-
-      const [addEditable, removeEditable] = useGameStore((state) => [state.addEditable, state.removeEditable], shallow)
-
-      const transformDeps: string[] = []
-
-      ;['x', 'y', 'z'].forEach((axis) => {
-        transformDeps.push(props[`position-${axis}`], props[`rotation-${axis}`], props[`scale-${axis}`])
-      })
+      const [addEntity, removeEntity] = useWorldStore(state => [state.addEditable, state.removeEditable], shallow)
 
       useLayoutEffect(() => {
-        // calculate initial properties before adding the editable
-        const pos: Vector3 = position ? new Vector3(...position) : new Vector3()
-        const rot: Vector3 = rotation ? new Vector3(...rotation) : new Vector3()
-        const scal: Vector3 = scale ? new Vector3(...scale) : new Vector3(1, 1, 1)
-
-        ;['x', 'y', 'z'].forEach((axis, index) => {
-          if (props[`position-${axis}`]) pos.setComponent(index, props[`position-${axis}`])
-          if (props[`rotation-${axis}`]) rot.setComponent(index, props[`rotation-${axis}`])
-          if (props[`scale-${axis}`]) scal.setComponent(index, props[`scale-${axis}`])
-        })
-
-        const quaternion = new Quaternion().setFromEuler(new Euler().setFromVector3(rot))
-
-        addEditable(type, uniqueName, {
-          transform: new Matrix4().compose(pos, quaternion, scal),
-        })
+        addEntity(type, uniqueName, {})
 
         return () => {
-          removeEditable(uniqueName)
+          removeEntity(uniqueName)
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [
-        addEditable,
-        position,
-        removeEditable,
-        rotation,
-        scale,
+        addEntity,
+        removeEntity,
         uniqueName,
 
         // nasty
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        ...transformDeps,
       ])
 
       useLayoutEffect(() => {
         const object = objectRef.current!
         // source of truth is .position, .quaternion and .scale, not the matrix, so we have to do this instead of setting the matrix
-        useGameStore
+        useWorldStore
           .getState()
           .editables[uniqueName].properties.transform.decompose(object.position, object.quaternion, object.scale)
 
-        const unsub = useGameStore.subscribe(
+        const unsub = useWorldStore.subscribe(
           (transform: Matrix4 | null) => {
             if (transform) {
-              useGameStore
+              useWorldStore
                 .getState()
                 .editables[uniqueName].properties.transform.decompose(object.position, object.quaternion, object.scale)
             }
           },
-          (state) => state.editables[uniqueName].properties.transform
+          state => state.editables[uniqueName].properties.transform
         )
 
         return () => {
@@ -126,14 +135,14 @@ const entity = <T extends JSXElementConstructor<any> | EditableType, U extends E
     }
   )
 
-const createEditable = <T extends EditableType>(type: T) => entity(type, type)
+const createEntity = <T extends EditableType>(type: T) => entity(type, type)
 
-entity.group = createEditable('group')
-entity.mesh = createEditable('mesh')
-entity.spotLight = createEditable('spotLight')
-entity.directionalLight = createEditable('directionalLight')
-entity.pointLight = createEditable('pointLight')
-entity.perspectiveCamera = createEditable('perspectiveCamera')
-entity.orthographicCamera = createEditable('orthographicCamera')
+entity.group = createEntity('group')
+entity.mesh = createEntity('mesh')
+entity.spotLight = createEntity('spotLight')
+entity.directionalLight = createEntity('directionalLight')
+entity.pointLight = createEntity('pointLight')
+entity.perspectiveCamera = createEntity('perspectiveCamera')
+entity.orthographicCamera = createEntity('orthographicCamera')
 
 export default entity

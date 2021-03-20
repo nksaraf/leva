@@ -6,9 +6,9 @@ import React, {
   useState,
   VFC,
 } from 'react';
-import { useGameStore } from '../store';
+import { useWorldStore } from '../store';
 import { createPortal } from 'react-three-fiber';
-import EditableProxy from './EditableProxy';
+import EntityProxy from './EditableProxy';
 import { OrbitControls } from '@react-three/drei';
 import TransformControls from './TransformControls';
 import shallow from 'zustand/shallow';
@@ -39,7 +39,7 @@ const ProxyManager: VFC<ProxyManagerProps> = ({ orbitControlsRef }) => {
     transformControlsSpace,
     viewportShading,
     setEditableTransform,
-  ] = useGameStore(
+  ] = useWorldStore(
     (state) => [
       state.sceneSnapshot,
       state.selected,
@@ -71,8 +71,8 @@ const ProxyManager: VFC<ProxyManagerProps> = ({ orbitControlsRef }) => {
         } else {
           editableProxies[object.userData.__editableName] = {
             portal: createPortal(
-              <EditableProxy
-                editableName={object.userData.__editableName}
+              <EntityProxy
+                entityName={object.userData.__editableName}
                 editableType={object.userData.__editableType}
                 object={object}
               />,
@@ -93,7 +93,7 @@ const ProxyManager: VFC<ProxyManagerProps> = ({ orbitControlsRef }) => {
       return;
     }
 
-    const unsub = useGameStore.subscribe(
+    const unsub = useWorldStore.subscribe(
       (transform) => {
         if (isBeingEdited.current) {
           return;

@@ -1,10 +1,10 @@
 import React from 'react'
 import { Canvas } from 'react-three-fiber'
-import { editable as e, configure } from '../src'
+// import { editable as e, configure } from '../src'
 import { PerspectiveCamera } from '@react-three/drei'
 import { GLTFExporter } from 'three-stdlib'
 import { useCreateStore } from 'leva'
-const bind = configure()
+// const bind = configure()
 const ECamera = e(PerspectiveCamera, 'perspectiveCamera')
 
 const reducer = () => {}

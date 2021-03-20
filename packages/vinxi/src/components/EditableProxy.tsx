@@ -15,7 +15,7 @@ import React, {
   VFC,
 } from 'react';
 import { useHelper, Sphere, Html } from '@react-three/drei';
-import { EditableType, useGameStore } from '../store';
+import { EditableType, useWorldStore } from '../store';
 import shallow from 'zustand/shallow';
 import { BsFillCollectionFill } from '@react-icons/all-files/bs/BsFillCollectionFill';
 import { GiLightProjector } from '@react-icons/all-files/gi/GiLightProjector';
@@ -25,15 +25,15 @@ import { GiLightBulb } from '@react-icons/all-files/gi/GiLightBulb';
 import { BsCameraVideoFill } from '@react-icons/all-files/bs/BsCameraVideoFill';
 import { IconType } from '@react-icons/all-files';
 
-export interface EditableProxyProps {
-  editableName: string;
+export interface EntityProps {
+  entityName: string;
   editableType: EditableType;
   object: Object3D;
   onChange?: () => void;
 }
 
-const EditableProxy: VFC<EditableProxyProps> = ({
-  editableName,
+const EntityProxy: VFC<EntityProps> = ({
+  entityName: editableName,
   editableType,
   object,
 }) => {
@@ -42,7 +42,7 @@ const EditableProxy: VFC<EditableProxyProps> = ({
     showOverlayIcons,
     setSelected,
     setSnapshotProxyObject,
-  ] = useGameStore(
+  ] = useWorldStore(
     (state) => [
       state.selected,
       state.showOverlayIcons,
@@ -197,4 +197,4 @@ const EditableProxy: VFC<EditableProxyProps> = ({
   );
 };
 
-export default EditableProxy;
+export default EntityProxy;

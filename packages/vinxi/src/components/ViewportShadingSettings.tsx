@@ -1,5 +1,5 @@
 import React, { VFC } from 'react';
-import { useGameStore } from '../store';
+import { useWorldStore } from '../store';
 import shallow from 'zustand/shallow';
 import EnvironmentPreview from './EnvironmentPreview';
 import { Checkbox, FormControl, Heading } from './elements';
@@ -11,7 +11,7 @@ const ViewportShadingSettings: VFC = () => {
     useHdrAsBackground,
     setSelectedHdr,
     setUseHdrAsBackground,
-  ] = useGameStore(
+  ] = useWorldStore(
     (state) => [
       state.hdrPaths,
       state.selectedHdr,

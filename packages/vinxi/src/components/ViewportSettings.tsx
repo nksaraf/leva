@@ -1,5 +1,5 @@
 import React, { VFC } from 'react';
-import { useGameStore } from '../store';
+import { useWorldStore } from '../store';
 import shallow from 'zustand/shallow';
 import { Checkbox, FormControl } from './elements';
 
@@ -11,7 +11,7 @@ const ViewportShadingSettings: VFC = () => {
     setShowOverlayIcons,
     setShowGrid,
     setShowAxes,
-  ] = useGameStore(
+  ] = useWorldStore(
     (state) => [
       state.showOverlayIcons,
       state.showGrid,

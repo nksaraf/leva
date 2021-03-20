@@ -99,5 +99,8 @@
     "jsxBracketSameLine": true,
     "tabWidth": 2,
     "printWidth": 120
+  },
+  "dependencies": {
+    "create-hook-context": "^1.0.0"
   }
 }

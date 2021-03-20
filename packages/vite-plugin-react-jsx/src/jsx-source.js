@@ -1,12 +1,11 @@
 const { declare } = require('@babel/helper-plugin-utils')
 const { types: t } = require('@babel/core')
 
-module.exports = declare((api) => {
+module.exports = declare(api => {
   api.assertVersion(7)
 
   const visitor = {
     JSXOpeningElement(path, state) {
-      console.log(process.env.NODE_ENV)
       if (process.env.NODE_ENV && process.env.NODE_ENV !== 'development') return
 
       const location = path.container.openingElement.loc

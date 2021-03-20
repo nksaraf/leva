@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, VFC } from 'react';
 import { useForm, UseFormMethods } from 'react-hook-form';
-import { useGameStore } from '../store';
+import { useWorldStore } from '../store';
 import { Euler, Matrix4, Quaternion, Vector3 } from 'three';
 import shallow from 'zustand/shallow';
 import {
@@ -57,7 +57,7 @@ type Inputs = {
 };
 
 const PropertiesPanel: VFC = () => {
-  const [selected, setEditableTransform] = useGameStore(
+  const [selected, setEditableTransform] = useWorldStore(
     (state) => [state.selected, state.setEditableTransform],
     shallow
   );
@@ -71,7 +71,7 @@ const PropertiesPanel: VFC = () => {
     const rotation = new Quaternion();
     const scale = new Vector3();
 
-    useGameStore
+    useWorldStore
       .getState()
       .editables[selected].properties.transform.decompose(
         position,
@@ -112,7 +112,7 @@ const PropertiesPanel: VFC = () => {
       });
     }
 
-    const unsub = useGameStore.subscribe(
+    const unsub = useWorldStore.subscribe(
       () => {
         const formValues = getFormValuesFromEditable();
         if (formValues) {
@@ -161,7 +161,7 @@ const PropertiesPanel: VFC = () => {
               // @ts-ignore
               className="rounded-full focus:outline-none focus:ring transition-transform transform hover:scale-125"
               onClick={() => {
-                const editable = useGameStore.getState().editables[selected];
+                const editable = useWorldStore.getState().editables[selected];
                 setEditableTransform(
                   selected,
                   editable.initialProperties.transform.clone()

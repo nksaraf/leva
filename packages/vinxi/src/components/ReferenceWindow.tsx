@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, VFC } from 'react';
-import { useGameStore } from '../store';
+import { useWorldStore } from '../store';
 import shallow from 'zustand/shallow';
 import { WebGLRenderer } from 'three';
 import useMeasure from 'react-use-measure';
@@ -11,7 +11,7 @@ interface ReferenceWindowProps {
 const ReferenceWindow: VFC<ReferenceWindowProps> = ({ height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [gl] = useGameStore((state) => [state.gl], shallow);
+  const [gl] = useWorldStore((state) => [state.gl], shallow);
   const [ref, bounds] = useMeasure();
 
   useLayoutEffect(() => {

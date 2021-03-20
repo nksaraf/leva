@@ -12,6 +12,7 @@ export type EditableType =
   | 'pointLight'
   | 'perspectiveCamera'
   | 'orthographicCamera'
+
 export type TransformControlsMode = 'translate' | 'rotate' | 'scale'
 export type TransformControlsSpace = 'world' | 'local'
 export type ViewportShading = 'wireframe' | 'flat' | 'solid' | 'rendered'
@@ -216,6 +217,7 @@ export const World = () => {}
 //     }
 //   };
 // }
+// import { editorState } from './editorState'
 
 export type EditorStore = {
   scene: Scene | null
@@ -278,7 +280,7 @@ const config: StateCreator<EditorStore> = (set, get) => {
     DefaultLoadingManager.onProgress = (url, loaded, total) => {
       existingHandler(url, loaded, total)
       if (url.match(/\.hdr$/)) {
-        set((state) => {
+        set(state => {
           const newPaths = new Set(state.hdrPaths)
           newPaths.add(url)
           return { hdrPaths: Array.from(newPaths) }
@@ -290,6 +292,7 @@ const config: StateCreator<EditorStore> = (set, get) => {
   return {
     scene: null,
     gl: null,
+    state: 'idle',
     allowImplicitInstancing: false,
     orbitControlsRef: null,
     editables: {},
@@ -342,7 +345,7 @@ const config: StateCreator<EditorStore> = (set, get) => {
       })
     },
     addEditable: (type, uniqueName, initialProperties) =>
-      set((state) => {
+      set(state => {
         let properties = initialProperties
         if (state.editables[uniqueName]) {
           if (state.editables[uniqueName].type !== type && process.env.NODE_ENV === 'development') {
@@ -374,11 +377,11 @@ const config: StateCreator<EditorStore> = (set, get) => {
           },
         }
       }),
-    setOrbitControlsRef: (camera) => {
+    setOrbitControlsRef: camera => {
       set({ orbitControlsRef: camera })
     },
-    removeEditable: (name) =>
-      set((state) => {
+    removeEditable: name =>
+      set(state => {
         const { [name]: removed, ...rest } = state.editables
         return {
           editables: {
@@ -388,7 +391,7 @@ const config: StateCreator<EditorStore> = (set, get) => {
         }
       }),
     setEditableTransform: (uniqueName, transform) => {
-      set((state) => ({
+      set(state => ({
         editables: {
           ...state.editables,
           [uniqueName]: {
@@ -398,44 +401,44 @@ const config: StateCreator<EditorStore> = (set, get) => {
         },
       }))
     },
-    setSelected: (name) => {
+    setSelected: name => {
       set({ selected: name })
     },
-    setSelectedHdr: (hdr) => {
+    setSelectedHdr: hdr => {
       set({ selectedHdr: hdr })
     },
-    setTransformControlsMode: (mode) => {
+    setTransformControlsMode: mode => {
       set({ transformControlsMode: mode })
     },
-    setTransformControlsSpace: (mode) => {
+    setTransformControlsSpace: mode => {
       set({ transformControlsSpace: mode })
     },
-    setViewportShading: (mode) => {
+    setViewportShading: mode => {
       set({ viewportShading: mode })
     },
-    setShowOverlayIcons: (show) => {
+    setShowOverlayIcons: show => {
       set({ showOverlayIcons: show })
     },
-    setUseHdrAsBackground: (use) => {
+    setUseHdrAsBackground: use => {
       set({ useHdrAsBackground: use })
     },
-    setShowGrid: (show) => {
+    setShowGrid: show => {
       set({ showGrid: show })
     },
-    setShowAxes: (show) => {
+    setShowAxes: show => {
       set({ showAxes: show })
     },
-    setEditorOpen: (open) => {
+    setEditorOpen: open => {
       set({ editorOpen: open })
     },
     createSnapshot: () => {
-      set((state) => ({
+      set(state => ({
         sceneSnapshot: state.scene?.clone(),
         editablesSnapshot: state.editables,
       }))
     },
     setSnapshotProxyObject: (proxyObject, uniqueName) => {
-      set((state) => ({
+      set(state => ({
         editablesSnapshot: {
           ...state.editablesSnapshot,
           [uniqueName]: {
@@ -502,7 +505,7 @@ const config: StateCreator<EditorStore> = (set, get) => {
   }
 }
 
-export const useGameStore = create<EditorStore>(config)
+export const useWorldStore = create<EditorStore>(config)
 
 const initPersistence = (key: string): [PersistedState | null, (() => void) | undefined] => {
   let initialPersistedState: PersistedState | null = null
@@ -516,10 +519,10 @@ const initPersistence = (key: string): [PersistedState | null, (() => void) | un
       }
     } catch (e) {}
 
-    unsub = useGameStore.subscribe(
+    unsub = useWorldStore.subscribe(
       () => {
-        const canvasName = useGameStore.getState().canvasName
-        const serialize = useGameStore.getState().serialize
+        const canvasName = useWorldStore.getState().canvasName
+        const serialize = useWorldStore.getState().serialize
         if (canvasName) {
           const editables = serialize()
           localStorage.setItem(
@@ -532,27 +535,22 @@ const initPersistence = (key: string): [PersistedState | null, (() => void) | un
           )
         }
       },
-      (state) => state.editables
+      state => state.editables
     )
   }
 
   return [initialPersistedState, unsub]
 }
 
-let [initialPersistedState, unsub] = initPersistence('react-three-editable_')
+let [initialPersistedState, unsub] = initPersistence('vinxi')
 
-export type BindFunction = (options?: {
-  allowImplicitInstancing?: boolean
-  state?: EditableState
-}) => (options: { gl: WebGLRenderer; scene: Scene }) => void
-
-export const configure = ({ localStorageNamespace = '', enablePersistence = true } = {}): BindFunction => {
+export const configure = ({ localStorageNamespace = '', enablePersistence = true } = {}) => {
   if (unsub) {
     unsub()
   }
 
   if (enablePersistence) {
-    const persistence = initPersistence(`react-three-editable_${localStorageNamespace}`)
+    const persistence = initPersistence(`vinxi_${localStorageNamespace}`)
 
     initialPersistedState = persistence[0]
     unsub = persistence[1]
@@ -561,9 +559,10 @@ export const configure = ({ localStorageNamespace = '', enablePersistence = true
     unsub = undefined
   }
 
-  return ({ allowImplicitInstancing = false, state } = {}) => {
+  return ({ allowImplicitInstancing = false, state = undefined as EditableState | undefined } = {}) => {
     return ({ gl, scene }) => {
-      const init = useGameStore.getState().init
+      // editorState.send('INIT', { scene, gl, allowImplicitInstancing, state })
+      const init = useWorldStore.getState().init
       init(scene, gl, allowImplicitInstancing, state)
     }
   }

@@ -5,10 +5,10 @@ import jsx from 'vite-plugin-react-jsx'
 // https://vitejs.dev/config/
 export default defineConfig({
   optimizeDeps: {
-    include:["leva"]
+    include: ['leva', 'leva/plugin'],
   },
   define: {
-    "global": "window"
+    global: 'window',
   },
   plugins: [jsx(), reactRefresh()],
 })

@@ -1,6 +1,6 @@
 import React, { VFC } from 'react';
 import TransformControlsModeSelect from './TransformControlsModeSelect';
-import { useGameStore } from '../store';
+import { useWorldStore } from '../store';
 import shallow from 'zustand/shallow';
 import ReferenceWindow from './ReferenceWindow';
 import { saveAs } from 'file-saver';
@@ -25,7 +25,7 @@ const UI: VFC = () => {
     setViewportShading,
     setEditorOpen,
     setEditableTransform,
-  ] = useGameStore(
+  ] = useWorldStore(
     (state) => [
       state.transformControlsMode,
       state.transformControlsSpace,
@@ -71,13 +71,13 @@ const UI: VFC = () => {
                   label="Focus on selected"
                   icon={<RiFocus3Line />}
                   onClick={() => {
-                    const orbitControls = useGameStore.getState()
+                    const orbitControls = useWorldStore.getState()
                       .orbitControlsRef?.current;
-                    const selected = useGameStore.getState().selected;
+                    const selected = useWorldStore.getState().selected;
                     let focusObject;
 
                     if (selected) {
-                      focusObject = useGameStore.getState()
+                      focusObject = useWorldStore.getState()
                         .editablesSnapshot![selected].proxyObject;
                     }
 
@@ -94,14 +94,14 @@ const UI: VFC = () => {
                   label="Align object to view"
                   icon={<GiPocketBow />}
                   onClick={() => {
-                    const camera = useGameStore.getState().orbitControlsRef
+                    const camera = useWorldStore.getState().orbitControlsRef
                       ?.current?.object;
-                    const selected = useGameStore.getState().selected;
+                    const selected = useWorldStore.getState().selected;
 
                     let proxyObject;
 
                     if (selected) {
-                      proxyObject = useGameStore.getState()
+                      proxyObject = useWorldStore.getState()
                         .editablesSnapshot![selected].proxyObject;
 
                       if (proxyObject && camera) {
@@ -150,7 +150,7 @@ const UI: VFC = () => {
             className="absolute right-0 bottom-0 pointer-events-auto"
             onClick={() => {
               const blob = new Blob(
-                [JSON.stringify(useGameStore.getState().serialize())],
+                [JSON.stringify(useWorldStore.getState().serialize())],
                 { type: 'text/json;charset=utf-8' }
               );
               saveAs(blob, 'editableState.json');

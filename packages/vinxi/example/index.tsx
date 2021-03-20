@@ -1,16 +1,22 @@
 import React, { useEffect, useRef } from 'react'
-import ReactDOM from 'react-dom'
+import ReactDOM, { render } from 'react-dom'
 
 import { Canvas, useResource, useFrame } from 'react-three-fiber'
 import { folder, useControls } from '../src/leva'
-import { OrbitControls, PerspectiveCamera, useHelper } from '@react-three/drei'
+import { OrbitControls, PerspectiveCamera, Stats, useHelper } from '@react-three/drei'
 // import { configure, editable as e } from './'
-import v, { Entity, useEntityContext, useEntityEditorStore, world, World } from './world'
+import v, { Entity, Group, Logger, useEntityContext, useEditableEntity, world, World } from './world'
 
 world.getState().dispatch({ type: 'CREATE_ENTITY', id: 1 })
 // const bind = configure({
 //   localStorageNamespace: 'MyProject',
 // })
+
+if (process.env.NODE_ENV === 'development') {
+  const editorRoot = document.createElement('div')
+  document.body.appendChild(editorRoot)
+  render(<Editor />, editorRoot)
+}
 
 const MyComponent = () => {
   // const { a } = useControls({ a: 1 })
@@ -20,6 +26,11 @@ const MyComponent = () => {
     <World>
       <Canvas gl={{ antialias: true, alpha: true }} shadowMap>
         <fog />
+        <Stats
+          showPanel={0} // Start-up panel (default=0)
+          className="stats" // Optional className to add to the stats container dom element
+          // {...props} // All stats.js props are valid
+        />
         <PerspectiveCamera
           ref={ref}
           makeDefault
@@ -45,6 +56,7 @@ const MyComponent = () => {
         </Entity>
         <Airplane />
         <Sky clouds={[1, 2, 3, 4, 5, 6]} position={[0, -600, 0]} />
+        <Logger />
       </Canvas>
     </World>
   )
@@ -58,6 +70,17 @@ var Colors = {
   brownDark: 0x23190f,
   blue: 0x68c3c0,
 }
+
+// const renderer = createCompo
+
+function Game() {
+  return (
+    <>
+      <Entity name="Three"></Entity>
+    </>
+  )
+}
+
 function normalize(v, vmin, vmax, tmin, tmax) {
   var nv = Math.max(Math.min(v, vmax), vmin)
   var dv = vmax - vmin
@@ -66,6 +89,7 @@ function normalize(v, vmin, vmax, tmin, tmax) {
   var tv = tmin + pc * dt
   return tv
 }
+
 function Airplane() {
   // const controls = useControls({
   //   speed: { value: 0.1, min: 0, max: 10 },
@@ -83,17 +107,17 @@ function Airplane() {
     mousePos.current = { x: tx, y: ty }
   })
 
-  const planeRef = React.useRef<THREE.Mesh>()
-  useFrame(() => {
-    var targetX = normalize(mousePos.current.x, -1, 1, -100, 100)
-    var targetY = normalize(mousePos.current.y, -1, 1, 25, 175)
-    planeRef.current.position.x = targetX
-    planeRef.current.position.y = targetY
-  })
+  const planeRef = React.useRef<THREE.Group>()
+  // useFrame(() => {
+  //   var targetX = normalize(mousePos.current.x, -1, 1, -100, 100)
+  //   var targetY = normalize(mousePos.current.y, -1, 1, 25, 175)
+  //   planeRef.current.position.x = targetX
+  //   planeRef.current.position.y = targetY
+  // })
 
   return (
-    <Entity name={'Player'}>
-      <group ref={planeRef} scale={[0.25, 0.25, 0.25]} position={[0, 100, 0]}>
+    <Entity name="Player">
+      <v.group ref={planeRef} scale={[0.25, 0.25, 0.25]} position={[0, 100, 0]}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[60, 50, 50, 1, 1, 1]} />
           <meshPhongMaterial color={Colors.red} flatShading />
@@ -114,7 +138,7 @@ function Airplane() {
             <meshPhongMaterial color={Colors.brownDark} flatShading />
           </mesh>
         </mesh>
-      </group>
+      </v.group>
     </Entity>
   )
 }
@@ -243,7 +267,7 @@ function Sky({ clouds, ...props }) {
 }
 
 function Sea(props) {
-  const store = useEntityEditorStore()
+  const store = useEditableEntity()
   const controls = useControls(
     'movement',
     {

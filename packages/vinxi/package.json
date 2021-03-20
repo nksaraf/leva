@@ -39,7 +39,7 @@
     "object.fromentries": "^2.0.4",
     "prism-react-renderer": "^1.1.1",
     "prop-types": "^15.7.2",
-    "react-colorful": "^5.0.0",
+    "react-colorful": "^5.0.1",
     "react-dropzone": "^11.3.1",
     "react-hook-form": "^6.11.0",
     "react-id-generator": "^3.0.1",

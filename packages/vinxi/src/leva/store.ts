@@ -1,0 +1,303 @@
+import { useMemo } from 'react'
+import create from 'zustand'
+import { normalizeInput, join, updateInput, warn, LevaErrors } from './utils'
+import { SpecialInputTypes } from './types'
+import type { Data, FolderSettings, State, StoreType, MappedPaths } from './types'
+
+export const Store = (function (this: StoreType) {
+  const store = create<State>(() => ({ data: {} }))
+
+  this.useStore = store
+  /**
+   * Folders will hold the folder settings for the pane.
+   * @note possibly make this reactive
+   */
+  const folders: Record<string, FolderSettings> = {}
+
+  /**
+   * OrderedPaths will hold all the paths in a parent -> children order.
+   * This will ensure we can display the controls in a predictable order.
+   */
+  const orderedPaths = new Set<String>()
+
+  /**
+   * For a given data structure, gets all paths for which inputs have
+   * a reference __refCount superior to zero. This function is used by the
+   * root pane to only display the inputs that are consumed by mounted
+   * components.
+   *
+   * @param data
+   */
+  this.getVisiblePaths = () => {
+    const data = this.getData()
+    const paths = Object.keys(data)
+    // identifies hiddenFolders
+    const hiddenFolders: string[] = []
+    Object.entries(folders).forEach(([path, settings]) => {
+      if (
+        // the folder settings have a render function
+        settings.render &&
+        // and the folder path matches a data path
+        // (this can happen on first mount and could probably be solved if folder settings
+        // were set together with the store data. In fact, the store data is set in useEffect
+        // while folders settings are set in useMemo).
+        paths.some((p) => p.indexOf(path) === 0) &&
+        // the folder settings is supposed to be hidden
+        !settings.render(this.get)
+      )
+        // then folder is hidden
+        hiddenFolders.push(path + '.')
+    })
+
+    const visiblePaths: string[] = []
+    orderedPaths.forEach((path: any) => {
+      if (
+        path in data &&
+        // if input is mounted
+        data[path].__refCount > 0 &&
+        // if it's not included in a hidden folder
+        hiddenFolders.every((p) => path.indexOf(p) === -1) &&
+        // if its render functions doesn't exists or returns true
+        (!data[path].render || data[path].render!(this.get))
+      )
+        // then the input path is visible
+        visiblePaths.push(path)
+    })
+
+    return visiblePaths
+  }
+
+  // adds paths to OrderedPaths
+  this.setOrderedPaths = (newPaths) => {
+    newPaths.forEach((p) => orderedPaths.add(p))
+  }
+
+  this.orderPaths = (paths) => {
+    this.setOrderedPaths(paths)
+    return paths
+  }
+
+  /**
+   * When the useControls hook unmmounts, it will call this function that will
+   * decrease the __refCount of all the inputs. When an input __refCount reaches 0, it
+   * should no longer be displayed in the panel.
+   *
+   * @param paths
+   */
+  this.disposePaths = (paths) => {
+    store.setState((s) => {
+      const data = s.data
+      paths.forEach((path) => {
+        if (path in data) {
+          const input = data[path]
+          input.__refCount--
+          if (input.__refCount === 0 && input.type in SpecialInputTypes) {
+            // this makes sure special inputs such as buttons are properly
+            // refreshed. This might need some attention though.
+            delete data[path]
+          }
+        }
+      })
+      return { data }
+    })
+  }
+
+  this.dispose = () => {
+    store.setState(() => {
+      return { data: {} }
+    })
+  }
+
+  this.getFolderSettings = (path) => {
+    return folders[path] || {}
+  }
+
+  // Shorthand to get zustand store data
+  this.getData = () => {
+    return store.getState().data
+  }
+
+  /**
+   * Merges the data passed as an argument with the store data.
+   * If an input path from the data already exists in the store,
+   * the function doesn't update the data but increments __refCount
+   * to keep track of how many components use that input key.
+   *
+   * Uses depsChanged to trigger a recompute and update inputs
+   * settings if needed.
+   *
+   * @param newData the data to update
+   * @param depsChanged to keep track of dependencies
+   */
+  this.addData = (newData, override) => {
+    store.setState((s) => {
+      const data = s.data
+      Object.entries(newData).forEach(([path, newInputData]) => {
+        let input = data[path]
+
+        // If an input already exists compare its values and increase the reference __refCount.
+        if (!!input) {
+          // @ts-ignore
+          const { type, value, ...rest } = newInputData
+          if (type !== input.type) {
+            warn(LevaErrors.INPUT_TYPE_OVERRIDE, type)
+          } else {
+            if (input.__refCount === 0 || override) {
+              Object.assign(input, rest)
+            }
+            // Else we increment the ref count
+            input.__refCount++
+          }
+        } else {
+          data[path] = { ...newInputData, __refCount: 1 }
+        }
+        input = data[path]
+      })
+
+      // Since we're returning a new object, direct mutation of data
+      // Should trigger a re-render so we're good!
+      return { data }
+    })
+  }
+
+  /**
+   * Shorthand function to set the value of an input at a given path.
+   *
+   * @param path path of the input
+   * @param value new value of the input
+   */
+  this.setValueAtPath = (path, value) => {
+    store.setState((s) => {
+      const data = s.data
+      //@ts-expect-error (we always update inputs with a value)
+      updateInput(data[path], value)
+      return { data }
+    })
+  }
+
+  this.setSettingsAtPath = (path, settings) => {
+    store.setState((s) => {
+      const data = s.data
+      //@ts-expect-error (we always update inputs with settings)
+      data[path].settings = { ...data[path].settings, ...settings }
+      return { data }
+    })
+  }
+
+  this.disableInputAtPath = (path, flag) => {
+    store.setState((s) => {
+      const data = s.data
+      //@ts-expect-error (we always update inputs with a value)
+      data[path].disabled = flag
+      return { data }
+    })
+  }
+
+  this.set = (values) => {
+    store.setState((s) => {
+      const data = s.data
+      Object.entries(values).forEach(([path, value]) => {
+        try {
+          //@ts-expect-error (we always update inputs with a value)
+          updateInput(data[path], value)
+        } catch {}
+      })
+      return { data }
+    })
+  }
+
+  this.get = (path) => {
+    try {
+      //@ts-expect-error
+      return this.getData()[path].value
+    } catch (e) {
+      warn(LevaErrors.PATH_DOESNT_EXIST, path)
+    }
+  }
+
+  /**
+   * Recursively extract the data from the schema, sets folder initial
+   * preferences and normalize the inputs (normalizing an input means parsing the
+   * input object, identify its type and normalize its settings).
+   *
+   * @param schema
+   * @param rootPath used for recursivity
+   */
+
+  const _getDataFromSchema = (schema: any, rootPath: string, mappedPaths: MappedPaths): Data => {
+    const data: any = {}
+
+    Object.entries(schema).forEach(([key, input]: [string, any]) => {
+      let newPath = join(rootPath, key)
+
+      // If the input is a folder, then we recursively parse its schema and assign
+      // it to the current data.
+      if (input.type === SpecialInputTypes.FOLDER) {
+        const newData = _getDataFromSchema(input.schema, newPath, mappedPaths)
+        Object.assign(data, newData)
+
+        // Sets folder preferences if it wasn't set before
+        if (!(newPath in folders)) folders[newPath] = input.settings as FolderSettings
+      } else if (key in mappedPaths) {
+        // if a key already exists, prompt an error.
+        warn(LevaErrors.DUPLICATE_KEYS, key, newPath, mappedPaths[key].path)
+      } else {
+        // If the input is not a folder, we normalize the input.
+        let _render = undefined
+        let _label = undefined
+        let _hint = undefined
+        let _optional
+        let _disabled
+        let _input = input
+        let _onChange
+
+        // parse generic options from input object
+        if (typeof input === 'object' && !Array.isArray(input)) {
+          const { render, label, optional, disabled, hint, onChange, ...rest } = input
+          _label = label
+          _render = render
+          _input = rest
+          _optional = optional
+          _disabled = disabled
+          _hint = hint
+          _onChange = onChange
+        }
+        mappedPaths[key] = { path: newPath, onChange: _onChange }
+
+        const normalizedInput = normalizeInput(_input, newPath)
+        // normalizeInput can return false if the input is not recognized.
+        if (normalizedInput) {
+          data[newPath] = normalizedInput
+          data[newPath].key = key
+          data[newPath].label = _label ?? key
+          data[newPath].hint = _hint
+          if (!(input.type in SpecialInputTypes)) {
+            data[newPath].optional = _optional ?? false
+            data[newPath].disabled = _disabled ?? false
+          }
+          if (typeof _render === 'function') data[newPath].render = _render
+        }
+      }
+    })
+
+    return data
+  }
+
+  this.getDataFromSchema = (schema) => {
+    const mappedPaths: MappedPaths = {}
+    const data = _getDataFromSchema(schema, '', mappedPaths)
+    return [data, mappedPaths]
+  }
+} as any) as { new (): StoreType }
+
+export const levaStore = new Store()
+
+export function useCreateStore() {
+  return useMemo(() => new Store(), [])
+}
+
+if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+  // TODO remove store from window
+  // @ts-expect-error
+  window.__LEVA__STORE = levaStore
+}

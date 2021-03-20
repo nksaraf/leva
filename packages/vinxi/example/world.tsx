@@ -1,13 +1,15 @@
 import React from 'react'
 import { transition } from './states'
 import { forwardRef } from 'react'
-import { DirectionalLight, Group, Mesh, OrthographicCamera, PerspectiveCamera, PointLight, SpotLight } from 'three'
+
 import mergeRefs from 'react-merge-refs'
 import { useControls, LevaPanel } from '../src/leva'
 import { createStore, editableStore, EditableStore } from './editableStore'
 import { GetState, SetState, StoreApi } from 'zustand'
 import { Html } from '@react-three/drei'
 import { LevaPanelProps } from '../src/leva/components/Leva'
+import { applyProps, Euler, GroupProps, Object3DNode, useFrame, useResource, Vector3 } from 'react-three-fiber'
+import * as THREE from 'three'
 
 // Graphics
 // Animation
@@ -59,16 +61,29 @@ export const machine = <S extends string, A extends { type: any }, T extends {}>
       let returned = reducer(action, prevData, { set, get, store: api })
 
       if (returned) {
-        console.log(
-          returned.state
-            ? `${options.name}: ${prevData.state} --> ${action.type} --> ${returned.state}`
-            : `${options.name}: ${prevData.state} => ${action.type}`,
-          {
-            prev: prevData,
-            action,
-            next: returned,
-          }
-        )
+        // @ts-ignore
+        if (action.logLevel !== 'silent') {
+          console.log(
+            returned.state
+              ? `${options.name}: ${prevData.state} --> ${action.type} --> ${returned.state}`
+              : `${options.name}: ${prevData.state} => ${action.type}`,
+            {
+              prev: prevData,
+              action,
+              next: returned,
+            }
+          )
+
+          logger.dispatch({
+            type: 'LOG',
+            // @ts-ignore
+            logLevel: 'silent',
+            log: returned.state
+              ? `${options.name}: ${prevData.state} --> ${action.type} --> ${returned.state}`
+              : `${options.name}: ${prevData.state} => ${action.type}`,
+          })
+        }
+
         set({ data: { ...prevData, ...returned } })
       }
     },
@@ -83,6 +98,22 @@ export const machine = <S extends string, A extends { type: any }, T extends {}>
   return store
 }
 
+const logger = machine({
+  data: {
+    logs: [] as string[],
+  },
+  name: 'logger',
+  initialState: 'LOGGING',
+  reducer: (action: { type: 'LOG'; log: string }, state) =>
+    transition(state, action, {
+      LOGGING: {
+        LOG: (action, state) => {
+          return { logs: [...state.logs, action.log] }
+        },
+      },
+    }),
+})
+
 interface EntityStore
   extends MachineStore<
     'ALIVE' | 'DEAD',
@@ -92,6 +123,8 @@ interface EntityStore
     | { type: 'SET_WORLD'; worldRef: any }
     | { type: 'SET_PARENT'; parent: EntityStore | null }
     | { type: 'CREATE_COMPONENT'; componentType: ComponentType<{}, any>; args: any }
+    | { type: 'REMOVE_COMPONENT'; componentType: ComponentType<{}, any> }
+    | { type: 'SET_DATA'; data: any }
     | {
         type: 'SET_COMPONENT'
         componentType: ComponentType<{}, any>
@@ -108,21 +141,22 @@ interface EntityStore
   > {}
 
 export const createEntity = ({
-  name,
+  name = undefined as string | undefined,
   id,
-  parent = null as null | EntityStore,
-  worldRef = null as null | any,
+  // parent = null as null | EntityStore,
+  // worldRef = null as null | any,
   // @ts-ignore
   // worldRefany,
 }): EntityStore => {
+  console.log('creating', name ?? id)
   return machine({
     initialState: 'ALIVE' as 'ALIVE' | 'DEAD',
     data: {
       id,
       type: '',
-      name,
+      name: name ?? id,
       worldRef: null as any,
-      parent: parent as null | EntityStore,
+      parent: null as null | EntityStore,
       components: new Map(),
     },
     name: name ?? id,
@@ -143,9 +177,15 @@ export const createEntity = ({
             return { components: state.components }
           },
           SET_COMPONENT: (action, state) => {
-            console.log(action.componentType, action.component)
             state.components.set(action.componentType, action.component)
             return { components: state.components }
+          },
+          REMOVE_COMPONENT: (action, state) => {
+            state.components.delete(action.componentType)
+            return { components: state.components }
+          },
+          SET_DATA: (action, state) => {
+            return action.data
           },
           // SET_COMPONENT: (action, state) => {
           //   if (state.components.has(action.componentType)) {
@@ -196,12 +236,12 @@ type ComponentType<T, Args, S extends string = string, A extends { type: any } =
   A
 > & { create: (args: Args) => MachineStore<S, A, T> }
 
-const transformComponent = createComponent({
-  data: {
-    position: [0, 0, 0],
-    scale: [0, 0, 0],
-    rotation: [0, 0, 0],
-  },
+export const transformComponent = createComponent({
+  initialData: (props: { position?: Vector3; scale?: Vector3; rotation?: Euler }) => ({
+    position: props.position ?? [0, 0, 0],
+    scale: props.scale ?? [0, 0, 0],
+    rotation: props.rotation ?? [0, 0, 0],
+  }),
   name: 'Transform',
 })
 
@@ -276,6 +316,31 @@ export const world = machine({
     }),
 })
 
+function useComponentRef<A>(type: ComponentType<A, any>) {
+  const ref = React.useRef<ReturnType<ComponentType<A, any>['create']>>()
+
+  return ref
+}
+
+export const Logger = () => {
+  // const transform = useNewComponent(transformComponent)
+
+  // const [position, rotation, scale] = transform.useStore(d => [d.data.position, d.data.rotation, d.data.scale], shallow)
+
+  return (
+    <Entity name="Logger">
+      <group position={[-100, 0, 0]}>
+        <Component type={transformComponent} args={{}} onChange={v => {}} />
+        <Html>
+          {logger.useStore().data.logs.map(log => (
+            <pre>{log}</pre>
+          ))}
+        </Html>
+      </group>
+    </Entity>
+  )
+}
+
 export const World = ({ children }) => {
   return <>{children}</>
 }
@@ -286,43 +351,68 @@ export const useEntityContext = () => {
   return React.useContext(EntityContext)
 }
 
-const getId = ({ id, name }) => {
-  return id ?? name
-}
-
 export const Panel = (props: LevaPanelProps) => {
   return <LevaPanel {...props} />
 }
 
-export const Entity = ({
-  children = null as React.ReactNode,
-  name = undefined as string | undefined,
-  id = undefined as string | undefined,
-}) => {
-  const parent = useEntityContext()
-  const entity = React.useMemo(() => {
-    const i = getId({ id, name })
-    console.log(i)
-    let oldEntity = world.getState().data.entities[i]
-    if (oldEntity) {
-      return oldEntity
-    } else {
-      const entity = createEntity({ id: i, name: i })
-      world.dispatch({ type: 'ADD_ENTITY', id: i, entity })
+let entityIdCounter = 0
+
+export const Entity = forwardRef(
+  (
+    { children = null, name = undefined }: { name: string | undefined; children?: React.ReactNode },
+    ref: React.ForwardedRef<EntityRef>
+  ) => {
+    const parent = useEntityContext()
+    const id = React.useMemo(() => {
+      return entityIdCounter++
+    }, [])
+
+    let _entity = React.useMemo(() => {
+      const entity = createEntity({ id, name })
       return entity
-    }
-  }, [id, name])
+    }, [id])
 
-  React.useMemo(() => {
-    entity.dispatch({ type: 'SET_PARENT', parent: parent ?? null })
-  }, [entity, parent])
+    let entity = world.useStore(world => world.data.entities[id]) ?? _entity
 
+    React.useMemo(() => {
+      if (entity.getState().data.parent != parent) {
+        entity.dispatch({ type: 'SET_PARENT', parent: parent ?? null })
+      }
+    }, [entity, parent])
+
+    React.useMemo(() => {
+      entity.dispatch({ type: 'SET_DATA', data: { name } })
+    }, [entity, name])
+
+    React.useMemo(() => {
+      world.dispatch({ type: 'ADD_ENTITY', id: id, entity })
+    }, [world, entity])
+
+    console.log(
+      entity.useStore(s => s.data.name),
+      'rendered'
+    )
+
+    return (
+      <EntityContext.Provider value={entity}>
+        <Component type={editorComponent} />
+        <EditorPanelComponent />
+
+        {children}
+      </EntityContext.Provider>
+    )
+  }
+)
+
+function EntityProxy() {}
+
+function EditorSystem() {
   return (
-    <EntityContext.Provider value={entity}>
-      <Component type={editorComponent} />
-      <EditorPanelComponent />
-      {children}
-    </EntityContext.Provider>
+    <Html></Html>
+    // <EntityProxy name="Player">
+    //   <Component type={editorComponent} />
+    //   <EditorPanelComponent />
+    // </EntityProxy>
   )
 }
 
@@ -333,206 +423,248 @@ const editorComponent = createComponent({
   }),
 })
 
-function Component({ type, children, args }: { type: any; children?: React.ReactNode; args?: any }) {
+function useNewComponent<A, Args>(type: ComponentType<A, Args>, args?: Args) {
+  const argsRef = React.useRef()
+  argsRef.current = args as any
+
+  const component = React.useMemo(() => {
+    // @ts-ignore
+    return type.create(argsRef.current)
+  }, [type])
+
+  return component
+}
+
+const Component = forwardRef(function<A>(
+  {
+    type,
+    children,
+    args,
+    onChange,
+  }: {
+    onChange?: any
+    type: A
+    children?: React.ReactNode
+    args?: any
+  },
+  ref: React.ForwardedRef<A>
+) {
   const entity = useEntityContext()!
   const argsRef = React.useRef(args)
-  React.useMemo(() => {
+  const component = React.useMemo(() => {
     if (!entity) {
       return null
     } else {
       let oldComponent = entity.getState().data.components.get(type as any)
 
       if (oldComponent) {
+        // oldComponent.setState({
+        //   data:
+        //     // @ts-ignore
+        //     type.initialData(argsRef.current),
+        // })
         return oldComponent
       }
 
-      const component = type.create(argsRef.current)
-      entity.dispatch({ type: 'SET_COMPONENT', componentType: type as any, component })
+      // @ts-ignore
+      let component = type.create(argsRef.current)
 
-      return null
+      if (ref) {
+        // @ts-ignore
+        ref.current = component
+      }
+
+      return component
     }
-    // } else {
-    //   const component = componentType(argsRef.current)
-    //   return component
-    // }
-  }, [type, entity])
+  }, [type, entity, ref])
+
+  React.useMemo(() => {
+    if (entity) {
+      entity.dispatch({ type: 'SET_COMPONENT', componentType: type as any, component: component as any })
+    }
+  }, [entity])
+
+  React.useLayoutEffect(() => {
+    if (onChange) return component.subscribe(onChange)
+  }, [onChange])
+
+  // @ts-ignore
 
   return children ? <>{children}</> : null
-}
+})
 
-export function useEntityEditorStore() {
+export function useEditableEntity() {
   const entity = useEntityContext()!
   const component = useEntityComponent(editorComponent, entity)
-  return component.useStore(s => s.data.store)
+  const editable = React.useMemo(() => {
+    if (component) {
+      return component
+    }
+    const newComponent = editorComponent.create({})
+
+    if (entity) {
+      entity.dispatch({ type: 'SET_COMPONENT', componentType: editorComponent as any, component: newComponent as any })
+    }
+
+    return newComponent
+  }, [entity])
+  return editable.useStore(s => s.data.store)
 }
 
+
 function EditorPanelComponent() {
-  const store = useEntityEditorStore()
+  const store = useEditableEntity()
   const entity = useEntityContext()
-  const {
-    data: { id, name },
-  } = entity?.useStore()
-  useControls({ id, name }, { store })
+  // const {
+  //   data: { id, name },
+  // } = entity?.useStore()!
+  // useControls({ id, name }, { store })
+  const ref = React.useRef<THREE.Group>()
+
+  const transform = useEntityComponent(object3DComponent, entity!)
+
+  console.log('TRANSFORM', transform)
+
+  // const object = transform?.useStore(s => s.data.object)
+
+  React.useEffect(() => {
+    if (transform) {
+      return transform.subscribe(({ object: { object } }) => {
+        // console.log(data.position)
+        if (ref.current) {
+          ref.current.position.x += 0.001
+        }
+        // console.log(o)
+      })
+    }
+  }, [transform])
+
+  // useFrame(() => {
+  // let state = transform?.getState()
+  // console.log(state)
+  // if (state?.data.object && ref.current) {
+  //   ref.current.position.x = state?.data.object.position.x
+  // }
+  // })
   // const store = component.getState().data.store
+
+  React.useEffect(() => {}, [])
+
   return (
-    <Html position={[20, 20, 20]}>
-      <Panel store={store} />
-    </Html>
+    <group ref={ref}>
+      <Html>
+        <Panel store={store} />
+      </Html>
+    </group>
   )
 }
 
+const object3DComponent = createComponent({
+  initialData: object => ({ object }),
+})
+
 export const useEntityComponent = function<A>(type: ComponentType<A, any>, entity: EntityStore) {
-  // const argsRef = React.useRef(args)
-  // argsRef.current = args
-  const state = entity.useStore(s => s.data.components)
-  console.log(state)
-  return React.useMemo(() => {
-    console.log(entity, type)
-    if (!entity) {
-      return null
-    } else {
-      let oldComponent = entity.getState().data.components.get(type as any)
-      console.log(entity, type, entity.getState(), oldComponent)
-
-      if (oldComponent) {
-        return oldComponent
-      }
-
-      // const component = componentType(argsRef.current)
-      // entity.dispatch({ type: 'SET_COMPONENT', componentType, component })
-
-      return null
-    }
-    // } else {
-    //   const component = componentType(argsRef.current)
-    //   return component
-    // }
-  }, [type, entity]) as ReturnType<ComponentType<A, any>['create']>
+  return entity.useStore(s => s.data.components.get(type as any))
 }
 
-interface Elements {
-  group: Group
-  mesh: Mesh
-  spotLight: SpotLight
-  directionalLight: DirectionalLight
-  perspectiveCamera: PerspectiveCamera
-  orthographicCamera: OrthographicCamera
-  pointLight: PointLight
-}
-
-// export const component = () => {
-//   const func = () => {
-//     return null
-//   }
-
-//   return func
-// }
-
-// const PositionComponent = component(() => {})
-
-// const entity = <T extends JSXElementConstructor<any>, U extends any>(Component: T, type: U) =>
-//   forwardRef(
-//     (
-//       {
-//         uniqueName,
-//         position,
-//         rotation,
-//         scale,
-//         userData,
-//         ...props
-//       }: ComponentProps<T> & {
-//         id: string
-//       } & RefAttributes<Elements[U]>,
-//       ref
-//     ) => {
-//       const objectRef = useRef<Elements[U]>()
-
-//       const [addEntity, removeEntity] = useWorldStore(state => [state.addEditable, state.removeEditable], shallow)
-
-//       useLayoutEffect(() => {
-//         addEntity(type, uniqueName, {})
-
-//         return () => {
-//           removeEntity(uniqueName)
-//         }
-//       }, [
-//         addEntity,
-//         removeEntity,
-//         uniqueName,
-
-//         // nasty
-//         // eslint-disable-next-line react-hooks/exhaustive-deps
-//       ])
-
-//       useLayoutEffect(() => {
-//         const object = objectRef.current!
-//         // source of truth is .position, .quaternion and .scale, not the matrix, so we have to do store instead of setting the matrix
-//         useWorldStore
-//           .getState()
-//           .editables[uniqueName].properties.transform.decompose(object.position, object.quaternion, object.scale)
-
-//         const unsub = useWorldStore.subscribe(
-//           (transform: Matrix4 | null) => {
-//             if (transform) {
-//               useWorldStore
-//                 .getState()
-//                 .editables[uniqueName].properties.transform.decompose(object.position, object.quaternion, object.scale)
-//             }
-//           },
-//           state => state.editables[uniqueName].properties.transform
-//         )
-
-//         return () => {
-//           unsub()
-//         }
-//       }, [uniqueName])
-
-//       return (
-//         // @ts-ignore
-//         <Component
-//           ref={mergeRefs([objectRef, ref])}
-//           {...props}
-//           userData={{
-//             __editable: true,
-//             __editableName: uniqueName,
-//             __editableType: type,
-//           }}
-//         />
-//       )
-//     }
-//   )
-
-const createEntityType = function<T>(Component: T) {
+const createEntityType = function<T, Props extends Object3DNode<any, any>>(
+  Class: any,
+  hook: (props: { object: T; store: EditableStore | null; onChange: (e) => {} }) => void
+) {
   let entityCount = 0
-  const component = forwardRef(function EntityComponent(props, ref) {
-    const objectRef = React.useRef()
+  const component = forwardRef(function EntityComponent({ ...props }: Props, ref: React.ForwardedRef<T | undefined>) {
+    const object = React.useMemo(() => {
+      const obj = new Class(...(props.args ?? []))
+      applyProps(obj, props, {})
+      return obj
+    }, [])
+
+    React.useEffect(() => {
+      return () => {
+        object.dispose?.()
+      }
+    }, [])
+
+    const store = useEditableEntity() as any
+    const entity = useEntityContext()
+
+    const component = useNewComponent(object3DComponent, { object })
+
+    React.useMemo(() => {
+      if (entity) {
+        entity.dispatch({ type: 'SET_COMPONENT', component, componentType: object3DComponent })
+      }
+    }, [component, entity])
+
+    hook({
+      object,
+      store,
+      onChange: e => {
+        component.setState({})
+        // entity?.setState({})
+      },
+    })
     let element = (
       // @ts-ignore
-      <Component
-        ref={mergeRefs([objectRef, ref])}
-        {...props}
-        userData={{
-          __editable: true,
-          // __editableName: uniqueName,
-          // __editableType: type,
-        }}
-      />
+      <>
+        <primitive
+          ref={ref}
+          //ref={mergeRefs([objectRef, ref])}
+          object={object}
+          {...props}
+        />
+        {/* <Component type={object3DComponent} args={{ object }} /> */}
+      </>
     )
-    return <Entity name={`${Component}${entityCount++}`}>{element}</Entity>
+    return <>{element}</>
   })
 
   component.displayName = 'Vinxi(' + Component + ')'
   return component
 }
-const vinxi: any = {}
 
-vinxi.group = createEntityType('group')
-vinxi.mesh = createEntityType('mesh')
-vinxi.spotLight = createEntityType('spotLight')
-vinxi.directionalLight = createEntityType('directionalLight')
-vinxi.pointLight = createEntityType('pointLight')
-vinxi.perspectiveCamera = createEntityType('perspectiveCamera')
-vinxi.orthographicCamera = createEntityType('orthographicCamera')
+const transformControls = (object, onChange) => ({
+  position: {
+    type: 'VECTOR3D',
+
+    value: [object.position.x, object.position.y, object.position.z],
+    onChange: v => {
+      object.position.set(...v)
+      onChange('position', v)
+    },
+  },
+  scale: {
+    type: 'VECTOR3D',
+    value: [object.scale.x, object.scale.y, object.scale.z],
+    onChange: v => {
+      object.scale.set(...v)
+      onChange('scale', v)
+    },
+  },
+  rotation: {
+    type: 'VECTOR3D',
+    value: [object.rotation.x, object.rotation.y, object.rotation.z],
+    onChange: v => {
+      object.rotation.set(...v)
+      onChange('rotation', v)
+    },
+  },
+})
+
+const Group = createEntityType<THREE.Group, GroupProps>(THREE.Group, ({ object, store, onChange }) => {
+  // @ts-ignore
+  useControls(() => transformControls(object, onChange), store ? { store } : undefined, [])
+})
+// vinxi.mesh = createEntityType('mesh')
+// vinxi.spotLight = createEntityType('spotLight')
+// vinxi.directionalLight = createEntityType('directionalLight')
+// vinxi.pointLight = createEntityType('pointLight')
+// vinxi.perspectiveCamera = createEntityType('perspectiveCamera')
+// vinxi.orthographicCamera = createEntityType('orthographicCamera')
+
+const vinxi = {
+  group: Group,
+}
 
 export default vinxi
 

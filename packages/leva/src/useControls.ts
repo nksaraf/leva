@@ -3,9 +3,9 @@ import { levaStore } from './store'
 import { folder } from './helpers'
 import { useDeepMemo, useValuesForPath } from './hooks'
 import { useRenderRoot } from './components/Leva'
-import type { FolderSettings, Schema, SchemaToValues, StoreType } from './types'
+import type { FolderSettings, Schema, SchemaToValues, State, StoreType } from './types'
 
-type HookSettings = { store?: StoreType }
+type HookSettings<TState extends State, TStore extends StoreType<TState>> = { store?: TStore }
 type SchemaOrFn<S extends Schema = Schema> = S | (() => S)
 
 type FunctionReturnType<S extends Schema> = [SchemaToValues<S>, (value: Partial<SchemaToValues<S>>) => void]
@@ -20,17 +20,17 @@ type HookReturnType<F extends SchemaOrFn | string, G extends SchemaOrFn> = F ext
   ? ReturnType<F>
   : ReturnType<G>
 
-function parseArgs(
+function parseArgs< TState extends State, TStore extends StoreType<TState>>(
   schemaOrFolderName: string | SchemaOrFn,
-  settingsOrDepsOrSchema?: HookSettings | React.DependencyList | SchemaOrFn,
-  depsOrSettingsOrFolderSettings?: React.DependencyList | HookSettings | FolderSettings,
-  depsOrSettings?: React.DependencyList | HookSettings,
+  settingsOrDepsOrSchema?: HookSettings<TState, TStore> | React.DependencyList | SchemaOrFn,
+  depsOrSettingsOrFolderSettings?: React.DependencyList | HookSettings<TState, TStore> | FolderSettings,
+  depsOrSettings?: React.DependencyList | HookSettings<TState, TStore>,
   depsOrUndefined?: React.DependencyList
 ) {
   let schema: SchemaOrFn
   let folderName: string | undefined = undefined
   let folderSettings: FolderSettings | undefined
-  let hookSettings: HookSettings | undefined
+  let hookSettings: HookSettings<TState, TStore> | undefined
   let deps: React.DependencyList | undefined
 
   if (typeof schemaOrFolderName === 'string') {
@@ -41,14 +41,14 @@ function parseArgs(
     } else {
       if (depsOrSettingsOrFolderSettings) {
         if ('store' in depsOrSettingsOrFolderSettings) {
-          hookSettings = depsOrSettingsOrFolderSettings as HookSettings
+          hookSettings = depsOrSettingsOrFolderSettings as HookSettings<TState, TStore>
           deps = depsOrSettings as React.DependencyList
         } else {
           folderSettings = depsOrSettingsOrFolderSettings as FolderSettings
           if (Array.isArray(depsOrSettings)) {
             deps = depsOrSettings as React.DependencyList
           } else {
-            hookSettings = depsOrSettings as HookSettings
+            hookSettings = depsOrSettings as HookSettings<TState, TStore>
             deps = depsOrUndefined
           }
         }
@@ -59,7 +59,7 @@ function parseArgs(
     if (Array.isArray(settingsOrDepsOrSchema)) {
       deps = settingsOrDepsOrSchema as React.DependencyList
     } else {
-      hookSettings = settingsOrDepsOrSchema as HookSettings
+      hookSettings = settingsOrDepsOrSchema as HookSettings<TState, TStore>
       deps = depsOrSettingsOrFolderSettings as React.DependencyList
     }
   }
@@ -74,11 +74,11 @@ function parseArgs(
  * @param folderSettingsOrDeps
  * @param depsOrUndefined
  */
-export function useControls<S extends Schema, F extends SchemaOrFn<S> | string, G extends SchemaOrFn<S>>(
+export function useControls<S extends Schema, F extends SchemaOrFn<S> | string, G extends SchemaOrFn<S>, TState extends State, TStore extends StoreType<TState>>(
   schemaOrFolderName: F,
-  settingsOrDepsOrSchema?: HookSettings | React.DependencyList | G,
-  depsOrSettingsOrFolderSettings?: React.DependencyList | HookSettings | FolderSettings,
-  depsOrSettings?: React.DependencyList | HookSettings,
+  settingsOrDepsOrSchema?: HookSettings<TState, TStore> | React.DependencyList | G,
+  depsOrSettingsOrFolderSettings?: React.DependencyList | HookSettings<TState, TStore> | FolderSettings,
+  depsOrSettings?: React.DependencyList | HookSettings<TState, TStore>,
   depsOrUndefined?: React.DependencyList
 ): HookReturnType<F, G> {
   // We parse the args
@@ -110,8 +110,8 @@ export function useControls<S extends Schema, F extends SchemaOrFn<S> | string, 
   const isGlobalPanel = !hookSettings?.store
 
   useRenderRoot(isGlobalPanel)
-  const [store] = useState(() => hookSettings?.store || levaStore)
-
+  const [__store] = useState(() => hookSettings?.store || levaStore )
+  const store = __store as StoreType
   /**
    * Parses the schema to extract the inputs initial data.
    *
@@ -121,9 +121,11 @@ export function useControls<S extends Schema, F extends SchemaOrFn<S> | string, 
    * parses the schema inside nested folder.
    */
   const [initialData, mappedPaths] = useMemo(() => store.getDataFromSchema(_schema), [store, _schema])
+  console.log(initialData, store)
 
   // Extracts the paths from the initialData and ensures order of paths.
   const paths = useMemo(() => store.orderPaths(Object.values(mappedPaths)), [mappedPaths, store])
+  console.log(paths);
 
   /**
    * Reactive hook returning the values from the store at given paths.
@@ -134,6 +136,7 @@ export function useControls<S extends Schema, F extends SchemaOrFn<S> | string, 
    * will call the store data.
    * */
   const values = useValuesForPath(store, paths, initialData)
+  console.log(values);
 
   const set = useCallback(
     (values: Record<string, any>) => {

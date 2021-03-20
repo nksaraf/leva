@@ -5,6 +5,7 @@ import { InputContext } from '../../context'
 import { useValue } from '../../hooks'
 import { StyledInputWrapper } from '../UI/StyledUI'
 import type { DataInput } from '../../types'
+import nextId from 'react-id-generator';
 
 type ControlInputProps = Omit<DataInput, '__refCount' | 'key'> & {
   valueKey: string
@@ -38,7 +39,7 @@ export function ControlInput({
       value={{
         key: valueKey,
         path,
-        id: 'leva__' + path,
+        id: nextId('leva--' + path + '-'),
         label,
         displayValue,
         value,

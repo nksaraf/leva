@@ -3,8 +3,8 @@ import type { SpecialInput, RenderFn, FolderSettings, Plugin } from './public'
 
 export type State = { data: Data }
 
-export type StoreType = {
-  useStore: UseStore<State>
+export type StoreType<TState extends State> = {
+  useStore: UseStore<TState>
   orderPaths: (paths: string[]) => string[]
   setOrderedPaths: (newPaths: string[]) => void
   disposePaths: (paths: string[]) => void
@@ -21,6 +21,7 @@ export type StoreType = {
   get: (path: string) => any
   getDataFromSchema: (schema: any) => [Data, Record<string, string>]
 }
+
 
 type Decorators = {
   __refCount: number

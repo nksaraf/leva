@@ -35,8 +35,10 @@ export { useStoreContext, LevaStoreProvider } from './context'
 
 // export the levaStore (default store)
 // hook to create custom store
-export { levaStore, useCreateStore } from './store'
+export { Store, levaStore, useCreateStore } from './store'
 
 // export folder, monitor, button
 export * from './helpers'
 export * from './plugin'
+export * from './types'
+export * from './utils'
